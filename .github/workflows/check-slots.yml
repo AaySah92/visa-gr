@@ -1,6 +1,6 @@
 name: Slot Checker
 on:
-  workflow_dispatch:  # Allow external triggers
+  workflow_dispatch:
 jobs:
   check:
     runs-on: ubuntu-latest
