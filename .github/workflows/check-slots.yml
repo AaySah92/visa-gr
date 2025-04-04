@@ -1,0 +1,14 @@
+name: Slot Checker
+on:
+  workflow_dispatch:  # Allow external triggers
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+      - run: go run main.go
+        env:
+          VISA_URL: ${{ secrets.VISA_URL }}
+          PUSHOVER_API_KEY: ${{ secrets.PUSHOVER_API_KEY }}
+          PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
