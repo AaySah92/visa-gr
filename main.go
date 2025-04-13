@@ -4,24 +4,24 @@ import "fmt"
 import "log"
 import "strings"
 import "strconv"
-import "sort"
 import "time"
 import "os"
+import "slices"
 import "net/http"
 import "net/url"
 import "github.com/PuerkitoBio/goquery"
 
 func main() {
-	checkAvailability(4)
-	// checkAvailability(5)
+	checkAvailability(time.Month(4), 2025)
+	checkAvailability(time.Month(5), 2025)
 	sendNotification()
 }
 
 type Slot struct {
-	Time	string
-	Price	string
-	PriceCh	string
-	Seats	int
+	TimeSlot	string
+	Price		string
+	PriceCh		string
+	Seats		int
 }
 
 type PushoverClient struct {
@@ -30,13 +30,13 @@ type PushoverClient struct {
 	httpClient	*http.Client
 }
 
-var availableSlots = make(map[int][]Slot)
+var availableSlots = make(map[time.Time][]Slot)
 
-func checkAvailability(month int) {
+func checkAvailability(month time.Month, year int) {
 	data := url.Values {
 		"bid": 		{"65"},
 		"year": 	{"2025"},
-		"month":	{strconv.Itoa(month)},
+		"month":	{strconv.Itoa(int(month))},
 		"adults":	{"2"},
 		"children":	{"0"},
 		"rnd": 		{"19"},
@@ -72,7 +72,7 @@ func checkAvailability(month int) {
 			if len(scheduleSplit) != 4 {
 				continue
 			}
-			time := scheduleSplit[0]
+			timeSlot := scheduleSplit[0]
 			price := scheduleSplit[1]
 			priceCh := scheduleSplit[2]
 			seats, err := strconv.Atoi(scheduleSplit[3])
@@ -81,8 +81,9 @@ func checkAvailability(month int) {
 			}
 			minSeats := 2
 			if seats >= minSeats {
-				availableSlots[day] = append(availableSlots[day], Slot {
-						Time: time,
+				date := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+				availableSlots[date] = append(availableSlots[date], Slot {
+						TimeSlot: timeSlot,
 						Price: price,
 						PriceCh: priceCh,
 						Seats: seats,
@@ -120,22 +121,29 @@ func (pc *PushoverClient) SendNotification(title string, message string) {
 }
 
 func sendNotification() {
-	sortedDays := make([]int, 0, len(availableSlots))
+	sortedDates := make([]time.Time, 0, len(availableSlots))
 	for d := range availableSlots {
-		sortedDays = append(sortedDays, d)
+		sortedDates = append(sortedDates, d)
 	}
-	sort.Ints(sortedDays)
+	slices.SortFunc(sortedDates, func(a, b time.Time) int {
+		if a.Before(b) {
+			return -1
+		} else if a.After(b) {
+			return 1
+		}
+		return 0
+	})
 
 	pc := newPushoverClient(os.Getenv("PUSHOVER_API_KEY"), os.Getenv("PUSHOVER_USER_KEY"))
 
-	for _, day := range sortedDays {
+	for _, date := range sortedDates {
 		var sb strings.Builder
-		slots := availableSlots[day]
+		slots := availableSlots[date]
 		for _, slot := range slots {
-			sb.WriteString(fmt.Sprintf("\n🕒 %s  •  💶 %s   •  👥 %d seats\n", slot.Time, slot.Price, slot.Seats))
+			sb.WriteString(fmt.Sprintf("\n🕒 %s  •  💶 %s   •  👥 %d seats\n", slot.TimeSlot, slot.Price, slot.Seats))
 		}
 		notificationMessage := sb.String()
-		notificationTitle := fmt.Sprintf("📅 Open slot Day %d", day)
+		notificationTitle := fmt.Sprintf("📅 Open Slot on %s", date.Format("Mon 2 Jan"))
 		pc.SendNotification(notificationTitle, notificationMessage)
 	}
 }
