@@ -43,16 +43,19 @@ func checkAvailability(month time.Month, year int) {
 	}
 	res, err := http.PostForm(os.Getenv("VISA_URL"), data)
 	if err != nil {
-		log.Fatalf("Greece - Request failed: %s", err)
+		log.Println("Greece - Request failed:", err)
+		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		log.Fatalf("Greece - Server error: %s", res.Status)
+		log.Println("Greece - Server error:", res.Status)
+		return
 	}
 
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	if err != nil {
-		log.Fatalf("Parsing failed: %s", err)
+		log.Println("Parsing failed:", err)
+		return
 	}
 
 	anchorClass := "a.aero_bcal_day_number"
@@ -60,11 +63,13 @@ func checkAvailability(month time.Month, year int) {
 		td := a.Parent()
 		day, err := strconv.Atoi(td.Text())
 		if err != nil {
-			log.Fatalf("Day parsing failed: %s", err)
+			log.Println("Day parsing failed:", err)
+			return
 		}
 		schedulesString, schedulesExist := td.Attr("data-schedule")
 		if !schedulesExist {
-			fmt.Printf("Schedules not found on day: %d\n", day)
+			log.Println("Schedules not found on day:", day)
+			return
 		}
 		schedules := strings.Split(schedulesString, "@")
 		for _, schedule := range schedules {
@@ -77,7 +82,8 @@ func checkAvailability(month time.Month, year int) {
 			priceCh := scheduleSplit[2]
 			seats, err := strconv.Atoi(scheduleSplit[3])
 			if err != nil {
-				log.Fatalf("Seat parsing failed: %s", err)
+				log.Println("Seat parsing failed:", err)
+				continue
 			}
 			minSeats := 2
 			if seats >= minSeats {
@@ -112,11 +118,11 @@ func (pc *PushoverClient) SendNotification(title string, message string) {
 	}
 	res, err := pc.httpClient.PostForm("https://api.pushover.net/1/messages.json", data)
 	if err != nil {
-		fmt.Printf("Pushover - Request failed: %s", err)
+		log.Println("Pushover - Request failed:", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		fmt.Printf("Pushover - Server error: %s", res.Status)
+		log.Println("Pushover - Server error:", res.Status)
 	}
 }
 
